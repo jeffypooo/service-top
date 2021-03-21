@@ -1,4 +1,5 @@
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 extern crate pretty_env_logger;
 
 use std::cmp::Ordering::Equal;
@@ -53,6 +54,7 @@ mod procs {
     use std::cmp::Ordering::Equal;
     use std::convert::Infallible;
     use std::error::Error;
+    use std::ops::Deref;
     use std::sync::{Arc, Mutex};
     use std::time::Duration;
 
@@ -64,9 +66,17 @@ mod procs {
     use tokio::task::JoinHandle;
     use warp::Filter;
 
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Serialize, Deserialize)]
+    struct ProcessInfo {
+        name: String,
+        cpu_usage: f32,
+    }
+
     #[derive(Clone)]
     pub struct ProcessesHandler {
-        process_list: Arc<Mutex<Vec<(String, f32)>>>
+        process_list: Arc<Mutex<Vec<ProcessInfo>>>
     }
 
     impl ProcessesHandler {
@@ -77,7 +87,6 @@ mod procs {
     }
 
     impl ProcessesHandler {
-
         pub async fn processes_loop(&self) -> Result<(), Box<dyn std::error::Error>> {
             let tick_rate = Duration::from_millis(500);
             loop {
@@ -86,12 +95,12 @@ mod procs {
                     .map_ok(|p| usage(p))
                     .try_buffer_unordered(std::usize::MAX)
                     .filter_map(|res| async move {
-                        if let Ok(usage) = res { Some(usage) } else { None }
+                        if let Ok(info) = res { Some(info) } else { None }
                     })
-                    .filter(|usg| futures::future::ready(usg.1 > 0.0))
+                    .filter(|info| futures::future::ready(info.cpu_usage > 0.0))
                     .collect::<Vec<_>>()
                     .await;
-                usages.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(Equal));
+                usages.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(Equal));
                 self.update_usages(usages);
 
                 let sleep_dur = tick_rate.checked_sub(beg.elapsed())
@@ -104,7 +113,7 @@ mod procs {
             Ok(())
         }
 
-        fn update_usages(&self, new_list: Vec<(String, f32)>) {
+        fn update_usages(&self, new_list: Vec<ProcessInfo>) {
             let mut cur_list = self.process_list.lock().unwrap();
             *cur_list = new_list;
             // debug!("procs list updated");
@@ -112,19 +121,18 @@ mod procs {
 
         pub async fn list_procs(&self) -> Result<impl warp::Reply, Infallible> {
             let value = self.process_list.lock().unwrap();
-            let resp = format!("{:#?}", value);
-            Ok(resp)
+            Ok(warp::reply::json(&value.deref()))
         }
     }
 
-    async fn usage(process: Process) -> ProcessResult<(String, f32)> {
+    async fn usage(process: Process) -> ProcessResult<ProcessInfo> {
         let name = process.name().await?;
         let usage_1 = process.cpu_usage().await?;
         futures_timer::Delay::new(Duration::from_millis(250)).await;
         let usage_2 = process.cpu_usage().await?;
         let delta = (usage_2 - usage_1).get::<ratio::ratio>() * 100.0;
 
-        Ok((name, delta))
+        Ok(ProcessInfo { name, cpu_usage: delta })
     }
 
     pub fn api_filters(handler: ProcessesHandler) -> impl Filter<Extract=impl warp::Reply, Error=warp::Rejection> + Clone {

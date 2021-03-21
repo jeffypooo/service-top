@@ -1,9 +1,13 @@
 #!/usr/bin/env bash
 
+HOST='localhost'
+#HOST='192.168.1.69'
+PORT='8080'
+URL="http://${HOST}:${PORT}/test"
+
 # shellcheck disable=SC2034
 for i in {0..1000}
 do
-    curl --request GET \
-    --url http://localhost:8080/test
-    clear
+    curl -s -o /dev/null http://localhost:8080/test -w "%{time_total}\n"
+#    curl -s http://192.168.1.69:8080/test -w "%{time_total}\n"
 done
