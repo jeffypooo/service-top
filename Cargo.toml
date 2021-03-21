@@ -12,6 +12,7 @@ warp = "0.3.0"
 futures = "0.3.13"
 futures-timer = "3.0.2"
 heim = { version = "0.1.0-rc.1", features = ["full"] }
-prettytable-rs = "0.8.0"
+log = "0.4"
+pretty_env_logger = "0.3"
 
 [dev-dependencies]
