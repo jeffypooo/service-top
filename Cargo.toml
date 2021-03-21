@@ -10,6 +10,7 @@ edition = "2018"
 tokio = { version = "1", features = ["full"] }
 warp = "0.3.0"
 futures = "0.3.13"
+futures-timer = "3.0.2"
 heim = { version = "0.1.0-rc.1", features = ["full"] }
 prettytable-rs = "0.8.0"
 
