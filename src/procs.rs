@@ -72,10 +72,15 @@ pub mod processes {
     }
 
     async fn cpu_usage(proc: &Process, dt: Duration) -> ProcessResult<f32> {
+        let vcpu_cnt = heim::cpu::logical_count().await?;
         let usage_1 = proc.cpu_usage().await?;
         futures_timer::Delay::new(dt).await;
         let usage_2 = proc.cpu_usage().await?;
-        Ok((usage_2 - usage_1).get::<ratio::ratio>() * 100.0)
+
+        let delta = (usage_2 - usage_1);
+        let pct = delta.get::<ratio::percent>();
+        let ret = pct / vcpu_cnt as f32;
+        Ok(ret)
     }
 
     async fn adjusted_mem_usage(proc: &Process) -> ProcessResult<AdjustedByte> {
