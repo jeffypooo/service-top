@@ -1,9 +1,9 @@
 pub mod processes {
-    use std::cmp::Ordering::Equal;
+    
 
     use std::time::Duration;
 
-    use futures::{future, StreamExt, TryStreamExt};
+    use futures::{StreamExt, TryStreamExt};
 
     use byte_unit::{AdjustedByte, Byte};
     use heim::process::{Process, ProcessResult};
@@ -79,7 +79,7 @@ pub mod processes {
         futures_timer::Delay::new(dt).await;
         let usage_2 = proc.cpu_usage().await?;
 
-        let delta = (usage_2 - usage_1);
+        let delta = usage_2 - usage_1;
         let pct = delta.get::<ratio::percent>();
         let ret = pct / vcpu_cnt as f32;
         Ok(ret)
