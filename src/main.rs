@@ -56,7 +56,7 @@ fn start_server(
             .with(warp::cors::cors().allow_any_origin())
             .with(warp::log("top::api"));
 
-        warp::serve(top).run(([127, 0, 0, 1], 8080)).await;
+        warp::serve(top).run(([0, 0, 0, 0], 8080)).await;
     })
 }
 
