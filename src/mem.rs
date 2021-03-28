@@ -1,7 +1,6 @@
 pub mod memory {
     use heim;
     use serde::Serialize;
-    use serde_json;
 
     #[derive(Serialize, Debug)]
     pub struct MemoryInfo {
@@ -17,11 +16,10 @@ pub mod memory {
             used: (mem.available() - mem.free()).value,
             available: mem.available().value,
         };
-        Ok((info))
+        Ok(info)
     }
 
     pub mod api {
-        use std::convert::Infallible;
 
         use tokio::sync::watch;
         use warp::Filter;
@@ -41,16 +39,11 @@ pub mod memory {
                             let info = &*rx.borrow();
                             Ok(warp::reply::json(&info))
                         }
-                        Err(e) => Err(warp::reject::not_found()),
+                        Err(_e) => Err(warp::reject::not_found()),
                     }
                 });
 
             warp::path("memory").and(total)
-        }
-
-        async fn total_json() -> Result<impl warp::Reply, Infallible> {
-            let info = super::get_memory_info().await.unwrap();
-            Ok(warp::reply::json(&info))
         }
     }
 }

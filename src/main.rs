@@ -2,19 +2,15 @@
 extern crate log;
 extern crate pretty_env_logger;
 
-use std::borrow::Borrow;
 use std::time::Duration;
 
-use futures::TryFutureExt;
-use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
 use tokio::sync::watch;
 use tokio::time::Instant;
 use warp::Filter;
 
 use cpu::processor;
 use mem::memory;
-use mem::memory::MemoryInfo;
+
 use procs::processes;
 
 mod cpu;
@@ -30,8 +26,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     info!("Service Top v0.1.0");
 
-    let (proc_tx, mut proc_rx) = watch::channel(processes::list_usages().await?);
-    let (mem_tx, mut mem_rx) = watch::channel(memory::get_memory_info().await?);
+    let (proc_tx, proc_rx) = watch::channel(processes::list_usages().await?);
+    let (mem_tx, mem_rx) = watch::channel(memory::get_memory_info().await?);
 
     let memory_updates = tokio::spawn(async move {
         let last_tick = Instant::now();

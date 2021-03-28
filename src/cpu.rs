@@ -1,6 +1,6 @@
 pub mod processor {
     pub mod api {
-        use std::convert::Infallible;
+
         use warp::{Filter, Rejection, Reply};
 
         pub fn routes() -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {

@@ -1,12 +1,10 @@
 pub mod processes {
     use std::cmp::Ordering::Equal;
-    use std::convert::Infallible;
-    use std::ops::Deref;
-    use std::sync::{Arc, Mutex};
+
     use std::time::Duration;
 
-    use futures::{future, StreamExt, TryFutureExt, TryStreamExt};
-    use heim::process;
+    use futures::{future, StreamExt, TryStreamExt};
+
     use heim::process::{Process, ProcessResult};
     use heim::units::ratio;
     use serde::ser::SerializeStruct;
@@ -77,7 +75,7 @@ pub mod processes {
         use warp::Filter;
 
         pub fn routes(
-            mut rx: watch::Receiver<Vec<ProcessInfo>>,
+            rx: watch::Receiver<Vec<ProcessInfo>>,
         ) -> impl Filter<Extract = impl warp::Reply, Error = warp::Rejection> + Clone {
             let list = warp::path::end()
                 .and(warp::get())
@@ -88,7 +86,7 @@ pub mod processes {
                             let info = &*rx.borrow();
                             Ok(warp::reply::json(&info))
                         }
-                        Err(e) => Err(warp::reject::not_found()),
+                        Err(_e) => Err(warp::reject::not_found()),
                     }
                 });
             warp::path("processes").and(list)
