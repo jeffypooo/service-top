@@ -17,7 +17,7 @@ pub mod processes {
     pub struct ProcessInfo {
         pub name: String,
         pub cpu_usage: f32,
-        pub mem: String,
+        pub mem: AdjustedByte,
     }
 
     impl Serialize for ProcessInfo {
@@ -32,7 +32,7 @@ pub mod processes {
             let mut state = serializer.serialize_struct("ProcessInfo", 3).unwrap();
             state.serialize_field("name", &self.name)?;
             state.serialize_field("cpu", &cpu_pct)?;
-            state.serialize_field("mem", &self.mem)?;
+            state.serialize_field("mem", &self.mem.to_string())?;
             state.end()
         }
     }
@@ -50,11 +50,15 @@ pub mod processes {
                     None
                 }
             })
-            .filter(|info| future::ready(info.cpu_usage > 0.0))
+            // .filter(|info| future::ready(info.cpu_usage > 0.0))
             .collect::<Vec<ProcessInfo>>()
             .await;
 
-        usages.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(Equal));
+        // usages.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(Equal));
+
+        usages.sort_by(|a, b| {
+            b.mem.cmp(&a.mem)
+        });
 
         Ok(usages)
     }
@@ -67,7 +71,7 @@ pub mod processes {
         Ok(ProcessInfo {
             name,
             cpu_usage,
-            mem: mem.to_string(),
+            mem: mem,
         })
     }
 
