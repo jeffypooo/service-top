@@ -56,9 +56,7 @@ pub mod processes {
 
         // usages.sort_by(|a, b| b.cpu_usage.partial_cmp(&a.cpu_usage).unwrap_or(Equal));
 
-        usages.sort_by(|a, b| {
-            b.mem.cmp(&a.mem)
-        });
+        usages.sort_by(|a, b| b.mem.cmp(&a.mem));
 
         Ok(usages)
     }
