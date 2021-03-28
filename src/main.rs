@@ -11,7 +11,11 @@ use warp::Filter;
 use cpu::processor;
 use mem::memory;
 
+use crate::mem::memory::MemoryInfo;
+use crate::procs::processes::ProcessInfo;
 use procs::processes;
+use tokio::sync::watch::{Receiver, Sender};
+use tokio::task::JoinHandle;
 
 mod cpu;
 mod mem;
@@ -29,33 +33,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let (proc_tx, proc_rx) = watch::channel(processes::list_usages().await?);
     let (mem_tx, mem_rx) = watch::channel(memory::get_memory_info().await?);
 
-    let memory_updates = tokio::spawn(async move {
-        let last_tick = Instant::now();
-        loop {
-            let info = memory::get_memory_info().await.unwrap();
-            mem_tx.send(info).unwrap_or_else(|e| error!("{}", e));
+    let memory_updates = start_memory_updates(mem_tx);
+    let process_updates = start_process_updates(proc_tx);
+    let server = start_server(mem_rx, proc_rx);
 
-            let sleep_dur = TICK_RATE
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or(DUR_ZERO);
-            tokio::time::sleep(sleep_dur).await;
-        }
-    });
+    let (_, _, _) = tokio::join!(server, process_updates, memory_updates);
 
-    let process_updates = tokio::spawn(async move {
-        let last_tick = Instant::now();
-        loop {
-            let usages = processes::list_usages().await.unwrap();
-            proc_tx.send(usages).unwrap_or_else(|e| error!("{}", e));
+    Ok(())
+}
 
-            let sleep_dur = TICK_RATE
-                .checked_sub(last_tick.elapsed())
-                .unwrap_or(DUR_ZERO);
-            tokio::time::sleep(sleep_dur).await;
-        }
-    });
-
-    let server = tokio::spawn(async move {
+fn start_server(
+    mem_rx: Receiver<MemoryInfo>,
+    proc_rx: Receiver<Vec<ProcessInfo>>,
+) -> JoinHandle<()> {
+    tokio::spawn(async move {
         let top = warp::path("top")
             .and(
                 processes::api::routes(proc_rx)
@@ -66,9 +57,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .with(warp::log("top::api"));
 
         warp::serve(top).run(([127, 0, 0, 1], 8080)).await;
-    });
+    })
+}
 
-    let (_, _, _) = tokio::join!(server, process_updates, memory_updates);
+fn start_memory_updates(mem_tx: Sender<MemoryInfo>) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let last_tick = Instant::now();
+        loop {
+            let info = memory::get_memory_info().await.unwrap();
+            mem_tx.send(info).unwrap_or_else(|e| error!("{}", e));
 
-    Ok(())
+            let sleep_dur = TICK_RATE
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or(DUR_ZERO);
+            tokio::time::sleep(sleep_dur).await;
+        }
+    })
+}
+
+fn start_process_updates(proc_tx: Sender<Vec<ProcessInfo>>) -> JoinHandle<()> {
+    tokio::spawn(async move {
+        let last_tick = Instant::now();
+        loop {
+            let usages = processes::list_usages().await.unwrap();
+            proc_tx.send(usages).unwrap_or_else(|e| error!("{}", e));
+
+            let sleep_dur = TICK_RATE
+                .checked_sub(last_tick.elapsed())
+                .unwrap_or(DUR_ZERO);
+            tokio::time::sleep(sleep_dur).await;
+        }
+    })
 }

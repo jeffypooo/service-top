@@ -5,8 +5,9 @@ pub mod processes {
 
     use futures::{future, StreamExt, TryStreamExt};
 
+    use byte_unit::{AdjustedByte, Byte};
     use heim::process::{Process, ProcessResult};
-    use heim::units::ratio;
+    use heim::units::{information, ratio};
     use serde::ser::SerializeStruct;
     use serde::{Serialize, Serializer};
 
@@ -16,6 +17,7 @@ pub mod processes {
     pub struct ProcessInfo {
         pub name: String,
         pub cpu_usage: f32,
+        pub mem: String,
     }
 
     impl Serialize for ProcessInfo {
@@ -30,6 +32,7 @@ pub mod processes {
             let mut state = serializer.serialize_struct("ProcessInfo", 3).unwrap();
             state.serialize_field("name", &self.name)?;
             state.serialize_field("cpu", &cpu_pct)?;
+            state.serialize_field("mem", &self.mem)?;
             state.end()
         }
     }
@@ -38,7 +41,7 @@ pub mod processes {
         let mut usages = heim::process::processes()
             .await
             .unwrap()
-            .map_ok(|proc| usage(proc))
+            .map_ok(|proc| info(proc))
             .try_buffer_unordered(usize::MAX)
             .filter_map(|res| async move {
                 if let Ok(info) = res {
@@ -56,17 +59,28 @@ pub mod processes {
         Ok(usages)
     }
 
-    pub async fn usage(process: Process) -> ProcessResult<ProcessInfo> {
+    pub async fn info(process: Process) -> ProcessResult<ProcessInfo> {
+        let cpu_usage = cpu_usage(&process, Duration::from_millis(500)).await?;
         let name = process.name().await?;
-        let usage_1 = process.cpu_usage().await?;
-        futures_timer::Delay::new(Duration::from_millis(500)).await;
-        let usage_2 = process.cpu_usage().await?;
-        let delta = (usage_2 - usage_1).get::<ratio::ratio>() * 100.0;
+        let mem = adjusted_mem_usage(&process).await?;
 
         Ok(ProcessInfo {
             name,
-            cpu_usage: delta,
+            cpu_usage,
+            mem: mem.to_string(),
         })
+    }
+
+    async fn cpu_usage(proc: &Process, dt: Duration) -> ProcessResult<f32> {
+        let usage_1 = proc.cpu_usage().await?;
+        futures_timer::Delay::new(dt).await;
+        let usage_2 = proc.cpu_usage().await?;
+        Ok((usage_2 - usage_1).get::<ratio::ratio>() * 100.0)
+    }
+
+    async fn adjusted_mem_usage(proc: &Process) -> ProcessResult<AdjustedByte> {
+        let rss = proc.memory().await?.rss();
+        Ok(Byte::from_bytes(rss.get::<information::byte>() as u128).get_appropriate_unit(true))
     }
 
     pub mod api {
